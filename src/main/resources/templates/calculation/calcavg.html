@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+@layout("/layout/header.html"){}
+@layout("/layout/body_layui.html"){}
+<body>
+<div class="layui-fluid">
+    <div class="layui-card">
+        <div class="layui-card-body">
+            <span class="layui-breadcrumb">
+                <a href="javascript:;">首页</a>
+                <a href="javascript:;">测算</a>
+                <a><cite>平均值统计</cite></a>
+            </span>
+        </div>
+    </div>
+    <div class="layui-row layui-col-space15">
+        <div class="layui-col-md12">
+            <div class="layui-card">
+                <div class="layui-card-body">
+                    <form class="layui-form layui-form-pane" action="" lay-filter="form">
+                        <div class="layui-row layui-col-space10">
+                            <div class="layui-inline layui-col-xs12">
+                                <label class="layui-form-label">时间选择</label>
+                                <div class="layui-input-block">
+                                    <input type="text" class="layui-input" id="dataDate" name="dataDate" readonly
+                                           placeholder="请选择日期...">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="layui-row layui-col-space10" style="text-align: center;">
+                            <button type="button" lay-filter="query" lay-submit class="layui-btn layui-bg-gray layui-btn-sm">
+                                <i class="layui-icon">&#xe615;</i>
+                                查询
+                            </button>
+                            <button type="button" lay-filter="calc" lay-submit class="layui-btn layui-bg-gray layui-btn-sm">
+                                <i class="layui-icon">&#xe653;</i>
+                                计算
+                            </button>
+                            <button type="button" lay-filter="export" lay-submit class="layui-btn layui-bg-gray layui-btn-sm">
+                                <i class="layui-icon">&#xe601;</i>
+                                导出
+                            </button>
+                        </div>
+                    </form>
+
+                    <div class="layui-card">
+                        <div class="layui-card-body">
+                            <div class="layui-collapse">
+                                <div class="layui-colla-item">
+                                    <h2 class="layui-colla-title">上传文件</h2>
+                                    <div class="layui-colla-content layui-show">
+                                        <div class="layui-card layui-fluid">
+                                            <div class="layui-card-body">
+                                                <input type="text" id="uploadFileName" readonly
+                                                       class="layui-input layui-fluid"
+                                                       style="margin-bottom: 5px;height: 30px;font-size: x-small"
+                                                       placeholder="文件名...">
+                                                <div class="layui-upload-drag" id="uploadView" style="width: 96%;">
+                                                    <i class="layui-icon"></i>
+                                                    <p>点击上传，或将文件拖拽到此处</p>
+                                                </div>
+                                                <button id="uploadBtn" class="layui-btn layui-btn-sm  layui-btn-fluid"
+                                                        style="margin-top: 8px"><i class="layui-icon">&#xe67c;</i>开始上传
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="layui-colla-item">
+                                    <h2 class="layui-colla-title">预览</h2>
+                                    <div class="layui-colla-content layui-show">
+                                        <div id="tableView"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+<script>
+    layui.use(['upload', 'setter', 'layer', 'laydate', 'form'], function () {
+        var laydate = layui.laydate;
+        var upload = layui.upload;
+        var setter = layui.setter;
+        var form = layui.form;
+        var loadIndex;
+        //初始赋值
+        laydate.render({
+            elem: '#dataDate'
+            , value: DateUtils.getToDay10()
+            , isInitValue: true
+        });
+
+        queryData(DateUtils.getToDay10());
+
+        //拖拽上传
+        upload.render({
+            elem: '#uploadView'
+            , url: '${app}/fileUpload/uploadCalcAvg' //改成您自己的上传接口
+            , method: 'post'
+            , auto: false //选择文件后不自动上传
+            , size: 0 //文件大小
+            , exts: 'xls|XLS' //文件后缀名
+            , accept: 'file' //选择文件类型
+            , bindAction: '#uploadBtn'
+            , data: {dataDate: DateUtils.getToDay10()}
+            , choose: function (obj) {
+                obj.preview(function (index, file, result) {
+                    $('#uploadFileName').val(file.name);
+                });
+            }
+            , before: function () {
+                loadIndex = layer.load(2, {shade: [0.5, '#000']});
+            }
+            , done: function (res) {
+                let o = setter.response;
+                layer.close(loadIndex);
+                if (res[o.statusName] == o.statusCode.ok) {
+                    layer.msg(res[o.msgName]);
+                    buildGrid(res[o.dataName]);
+                }
+                if (res[o.statusName] == o.statusCode.no) {
+                    layer.msg(res[o.msgName]);
+                }
+            }
+        });
+
+        /*监听查询事件*/
+        form.on('submit(query)', function (data) {
+            queryData($('#dataDate').val());
+            return false;
+        });
+
+
+        /*监听计算事件*/
+        form.on('submit(calc)', function (data) {
+            let dataDate = $('#dataDate').val();
+            loadIndex = layer.load(2, {shade: [0.5, '#000']});
+            $.post('${app}/calculation/calcAvg' ,{dataDate: dataDate} ,function (data) {
+                let o = setter.response;
+                layer.close(loadIndex);
+                if (data[o.statusName] == o.statusCode.ok) {
+                    layer.msg(data[o.msgName]);
+                    buildData(data[o.dataName]);
+                }
+                if (data[o.statusName] == o.statusCode.no) {
+                    layer.msg(data[o.msgName]);
+                }
+            });
+            return false;
+        });
+
+        /*监听导出事件*/
+        form.on('submit(export)', function (data) {
+            let dataDate = $('#dataDate').val();
+            loadIndex = layer.load(2, {shade: [0.5, '#000']});
+            window.location.href = '${app}/calculation/exportCalc?' + $.param({dataDate: dataDate}) ;
+            layer.close(loadIndex);
+            return false;
+        });
+
+        /*查询数据*/
+        function queryData(dataDate) {
+            loadIndex = layer.load(2, {shade: [0.5, '#000']});
+            $.post('${app}/fileUpload/queryCalcAvg', {dataDate: dataDate}, function (res) {
+                let o = setter.response;
+                layer.close(loadIndex);
+                if (res[o.statusName] == o.statusCode.ok) {
+                    layer.msg(res[o.msgName]);
+                    buildGrid(res[o.dataName]);
+                }
+                if (res[o.statusName] == o.statusCode.no) {
+                    layer.msg(res[o.msgName]);
+                    buildGrid();
+                }
+            });
+        }
+
+
+        /*组建Grid*/
+        function buildGrid(data) {
+            if (data['rows']) {
+                let mergaCols = data['mergaCols'];
+                let mergaRows = data['mergaRows'];
+                let rows = data['rows'];
+                let grid = [], header = [], body = [], tr;
+
+                header.push('<thead><tr>');
+                tr = [];
+                for (let i = 0; i < rows[0].length; i++) {
+                    let id = 'cell_0' + '_' + i;
+                    tr.push(['<th id="' + id + '">', rows[0][i], '</th>'].join(''));
+                }
+                header.push(tr.join(''));
+                header.push('</tr></thead>');
+
+                body.push('<tbody>');
+                tr = [];
+                for (let i = 1; i < rows.length; i++) {
+                    tr.push('<tr>');
+                    for (let j = 0; j < rows[i].length; j++) {
+                        let id = 'cell_' + i + '_' + j;
+                        tr.push(['<td id="' + id + '">', rows[i][j], '</td>'].join(''));
+                    }
+                    tr.push('</tr>');
+                }
+                body.push(tr.join(''));
+                body.push('</tbody>');
+
+                grid.push('<table id="process-grid" class="tb tb-b c-100 c-t-center" style="overflow: auto;height: 500px">');
+                grid.push(header.join(''));
+                grid.push(body.join(''));
+                grid.push('</table>')
+                $('#tableView').html(grid.join(''));
+
+                $('#process-grid').tablesMergeCell({
+                    automatic: false
+                    , cols: mergaCols
+                    , rows: mergaRows
+                });
+            } else {
+                $('#tableView').html('');
+            }
+        }
+
+        function buildData(data) {
+            if (data){
+                for (let i = 0; i < data.length ; i++) {
+                    let id = '#cell_' + data[i][1] + '_' + data[i][2];
+                    $(id).html(data[i][0]);
+                }
+            }
+        }
+    });
+</script>
+</html>

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html>
+@layout("/layout/header.html"){}
+@layout("/layout/body_layui.html"){}
+<body>
+
+<div class="layui-fluid">
+    <div class="layui-card">
+        <div class="layui-card-body">
+            <span class="layui-breadcrumb">
+                <a href="javascript:;">首页</a>
+                <a href="javascript:;">测算</a>
+                <a><cite>维护与统计</cite></a>
+            </span>
+        </div>
+    </div>
+    <div class="layui-row layui-col-space15">
+        <div class="layui-col-md12">
+            <div class="layui-card">
+                <div class="layui-card-header">
+                    <span class="layui-badge layui-bg-gray">当前模版：${templateInfo.TEMPLATE_NAME}</span><i class="layui-icon">&#xe756;</i>
+                </div>
+                <div class="layui-card-body">
+                    <form class="layui-form layui-form-pane" action="">
+                        @var index = 0;
+                        @for(var item in templateInfo.colList){
+                            @if( item.COLUMN_SEARCH_TYPE != '' ){
+                                @if( index % 2 == 0 ){
+                                    <div class="layui-row layui-col-space10">
+                                @}
+                                    <div class="layui-inline layui-col-xs6">
+                                        <label class="layui-form-label ">${item.COLUMN_NAME}</label>
+                                        <div class="layui-input-block">
+                                            <input type="text" name="${item.COLUMN_ID}" id="${item.COLUMN_ID}" autocomplete="off" class="layui-input ">
+                                        </div>
+                                    </div>
+                                @if( index % 2 != 0 || (itemLP.last && index%2 == 0 )){
+                                    </div>
+                                @}
+                                @ index ++;
+                            @}
+                        @}elsefor{
+                            请设置组合查询字段！
+                        @}
+                        <div class="layui-row layui-col-space10">
+                            <div class="layui-col-xs12">
+                                <button type="button" lay-submit lay-filter="search" class="layui-btn layui-btn-primary layui-btn-xs layui-bg-blue"><i class="layui-icon">&#xe615;</i>查询</button>
+                                <button type="reset" lay-filter="reset" class="layui-btn layui-btn-primary layui-btn-xs layui-bg-red"><i class="layui-icon">&#xe9aa;</i>重置</button>
+                                <button type="button" lay-submit lay-filter="exptemp" class="layui-btn layui-btn-primary layui-btn-xs"><i class="layui-icon">&#xe67d;</i>导出模板</button>
+                                <button type="button" lay-submit lay-filter="imptemp"  class="layui-btn layui-btn-primary layui-btn-xs layui-hide"><i class="layui-icon">&#xe67d;</i>上传模板</button>
+                                <button type="button" lay-submit lay-filter="exp" class="layui-btn layui-btn-primary layui-btn-xs"><i class="layui-icon">&#xe67d;</i>导出</button>
+                                <button type="button" lay-submit lay-filter="explog" class="layui-btn layui-btn-primary layui-btn-xs"><i class="layui-icon">&#xe615;</i>查看导出日志</button>
+                                @if(templateInfo.IMPORT_TABLE != ''){
+                                    <button type="button" lay-submit lay-filter="imp" class="layui-btn layui-btn-primary layui-btn-xs"><i class="layui-icon">&#xe601;</i>导入</button>
+                                    <button type="button" lay-submit lay-filter="implog" class="layui-btn layui-btn-primary layui-btn-xs"><i class="layui-icon">&#xe615;</i>查看导入日志</button>
+                                @}
+                            </div>
+                        </div>
+                    </form>
+
+                    <hr><div id="tableGridPage"></div>
+                    <div id="tableGrid"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    layui.use(['table','laypage','form','layer','synclog'],function(){
+        var table = layui.table;
+        var laypage = layui.laypage;
+        var form = layui.form;
+        var layer = layui.layer;
+        var synclog = layui.synclog;
+        var setter = layui.setter;
+
+        var params = {
+            templateId: '${templateInfo.TEMPLATE_ID}'
+        };
+
+
+        var page = {
+            count: 0
+            ,page: 1
+            ,limit: 20
+            ,limits: [ 20 , 50 , 100 , 1000 ]
+            ,layout: ['prev', 'page', 'next', 'skip','limit','count']
+            ,params: {page: 1,limit: 20}
+            ,first: '首页'
+            ,last: '尾页'
+            ,loadData: function(params){
+                //执行重载
+                table.reload('tableGrid', {  where: params }, 'data');
+            }
+            ,queryData: function(params){
+                //重载页数
+                $.extend(params || {},this.params);
+                this.loadData(params);
+            }
+            ,elems: ['tableGridPage']
+            /*定义分页插件的配置信息*/
+            ,config: function(){
+                let me = this;
+                return {
+                    count: me.count
+                    ,curr: me.page
+                    ,limit: me.limit
+                    ,limits: me.limits
+                    ,layout: me.layout  //这里面的顺序可以调换，我这里顺序调换过了
+                    ,first: me.first
+                    ,last: me.last
+                    ,jump: function(obj,first){
+                        if (!first){
+                            //执行重载
+                            $.extend(params, {page:obj.curr,limit:obj.limit} );
+                            me.loadData(params)
+                        }
+                    }
+                }
+            }
+            /*初始化分页插件*/
+            ,init:function(){
+                let me = this;
+                let config = me.config();
+                for (let i = 0 ; i < me.elems.length ; i ++ ){
+                    let pageConfig = {}
+                    $.extend(pageConfig,config,{elem:me.elems[i]})
+                    laypage.render(pageConfig);
+                }
+            }
+        };
+
+        $.extend(params,page.params);
+
+        table.render({
+            elem: '#tableGrid'
+            ,id: 'tableGrid'
+            ,url: '${app}/calculation/getList'
+            ,method: 'post'
+            ,where: params
+            ,parseData: function (data) {
+                console.log(this.url,"数据加载成功！",data);
+                return data;
+            }
+            ,response: {
+                statusName: 'code' //规定数据状态的字段名称，默认：code
+                ,statusCode: 200 //规定成功的状态码，默认：0
+                ,msgName: 'msg' //规定状态信息的字段名称，默认：msg
+                ,countName: 'total' //规定数据总数的字段名称，默认：count
+                ,dataName: 'list' //规定数据列表的字段名称，默认：data
+            }
+            ,cellMinWidth: 150 //全局定义常规单元格的最小宽度，layui 2.2.1 新增
+            ,text: {
+                none: '暂无相关数据' //默认：无数据。注：该属性为 layui 2.2.5 开始新增
+            }
+            @var autoHeiht = 260 + (index%2 != 0 ? index/2 + 1 : index/2 ) * 50;
+            ,height: 'full-${autoHeiht}'
+            // ,skin: 'line' //行边框风格
+            ,even: true //开启隔行背景
+            ,size: 'sm' //小尺寸的表格
+            // ,page: { //支持传入 laypage 组件的所有参数（某些参数除外，如：jump/elem） - 详见文档
+            //     layout: ['prev', 'page', 'next','limit', 'count',  'skip'] //自定义分页布局
+            //     ,curr: 1 //设定初始在第 5 页
+            //     ,groups: 5 //只显示 1 个连续页码
+            //     ,prev:'上一页'
+            //     ,next:'下一页'
+            //     ,first: '首页' //不显示首页
+            //     ,last: '尾页' //不显示尾页
+            // }
+            // ,limit: 20
+            // ,limits: [ 20 , 50 , 100 , 1000 ]
+            ,cols: [[
+                {checkbox: true, fixed: true}
+                ,{field:'id', title: '序号', type:'numbers',align: 'center'}
+                @for(var item in templateInfo.colList){
+                    @if( item.COLUMN_ENABLE == 'Y'){
+                        ,{
+                            field:'${item.COLUMN_ID}'
+                            ,title: '${item.COLUMN_NAME}'
+                            ,align: '${item.COLUMN_ALIGN}'
+                            ,sort: true
+                            @if(templateInfo.EDIT_TABLE != '' && item.COLUMN_IS_EDIT == 'Y' ){
+                                ,edit: 'text'
+                            @}
+                            ,templet: function(d){
+                                @if(item.COLUMN_TYPE == 'text' ){
+                                    let value = d['${item.COLUMN_ID}'] || '';
+                                    @if(item.COLUMN_DICTTYPE != '' ){
+                                        value = Dict.getValue('${item.COLUMN_DICTTYPE}',value)
+                                    @}
+                                    return '<span>' + value + '</span>';
+                                @}
+                                @if(item.COLUMN_TYPE == 'number' ){
+                                    let calc = '${item.COLUMN_CALC}' || 2 ;
+                                    let value = d['${item.COLUMN_ID}'] || '0.00';
+                                    return '<span>' + NumUtils.format(value,calc) + '</span>';
+                                @}
+                                return value;
+                            }
+                            @if( item.COLUMN_IS_SHOWLIST != 'Y'){
+                                ,hide : true
+                            @}
+                        }
+                    @}
+                @}elsefor{}
+            ]]
+            ,done: function(data, curr, count){
+                //如果是异步请求数据方式，res即为你接口返回的信息。
+                //如果是直接赋值的方式，res即为：{data: [], count: 99} data为当前页数据、count为数据总长度
+                $.extend(page,{page:data.pageNum,limit:data.pageSize,count:data.total});
+                if (data.pageNum == 1){
+                    page.init();
+                }
+            }
+        });
+
+        //监听查询事件
+        form.on('submit(search)', function(data){
+            let field = data.field , params = [];
+            for (const key in field) {
+                if (field[key]){
+                    params.push(" and " + key + " like '%" + field[key] + "%'");
+                }
+            }
+            params = params.join('');
+            page.queryData({condition:params});
+            return false;
+        });
+
+        /*重置查询条件*/
+        $('button[lay-filter="reset"]').click(function () {
+            page.queryData({condition:''});
+        });
+
+        //监听导出模板事件
+        form.on('submit(exptemp)', function(data){
+            window.location.href = '${app}/fileUpload/downloadTemplate?templateId=${templateInfo.TEMPLATE_ID}';
+            return false;
+        });
+        //监听上传模板事件
+        form.on('submit(imptemp)', function(data){
+            layer.open({
+                type: 2
+                ,area: ['300px', '320px']
+                ,title: '<i class="layui-icon">&#xe62c;</i> <span class="layui-badge layui-bg-orange">${templateInfo.TEMPLATE_NAME}</span> 模板上传'
+                ,skin: 'layui-layer-rim' //加上边框
+                ,content: ['${app}/fileUpload?templateId=${templateInfo.TEMPLATE_ID}','no'] //这里content是一个普通的String
+            });
+            // layer.msg(JSON.stringify(data.field));
+            return false;
+        });
+
+        //监听导出事件
+        form.on('submit(exp)', function(data){
+            let field = data.field , params = [];
+            for (const key in field) {
+                if (field[key]){
+                    params.push(" and " + key + " like '%" + field[key] + "%'");
+                }
+            }
+            params = params.join('');
+            $.post('${app}/fileUpload/buildExcelData',{templateId:'${templateInfo.TEMPLATE_ID}',condition:params},function (data) {
+                let o = setter.response;
+                if (data[o.statusName] == o.statusCode.ok){
+                    let key = 'EXPORT_TEMPLATE_ID_${templateInfo.TEMPLATE_ID}';
+                    synclog.setLocalData(key,data[o.msgName]);
+                    synclog.show(key);
+                }
+                if (data[o.statusName] == o.statusCode.no){
+                    layer.msg(data[o.msgName]);
+                }
+            });
+            return false;
+        });
+        //监听查看导出日志事件
+        form.on('submit(explog)', function(data){
+            let key = 'EXPORT_TEMPLATE_ID_${templateInfo.TEMPLATE_ID}';
+            synclog.show(key);
+            return false;
+        });
+
+        //监听导入事件
+        form.on('submit(imp)', function(data){
+            layer.open({
+                type: 2
+                ,area: ['300px', '320px']
+                ,title: '<i class="layui-icon">&#xe62c;</i> <span class="layui-badge layui-bg-orange">${templateInfo.TEMPLATE_NAME}</span> 文件上传'
+                ,skin: 'layui-layer-rim' //加上边框
+                ,content: ['${app}/fileUpload/uploadDataView?templateId=${templateInfo.TEMPLATE_ID}','no'] //这里content是一个普通的String
+                // ,cancel: function(index, layero){
+                //     let key = 'IMPORT_TEMPLATE_ID_${templateInfo.TEMPLATE_ID}';
+                //     synclog.removeLocalData(key);
+                // }
+                ,end:function(){
+                    let key = 'IMPORT_TEMPLATE_ID_${templateInfo.TEMPLATE_ID}';
+                    if (synclog.getLocalData(key)){
+                        synclog.show(key);
+                    }
+                }
+            });
+            // layer.msg(JSON.stringify(data.field));
+            return false;
+        });
+
+        //监听查看导入日志事件
+        form.on('submit(implog)', function(data){
+            let key = 'IMPORT_TEMPLATE_ID_${templateInfo.TEMPLATE_ID}';
+            synclog.show(key);
+            return false;
+        });
+    });
+
+</script>
+<style>
+
+    .layui-input, .layui-select, .layui-textarea {
+        height: 30px;
+        line-height: 1.3;
+        line-height: 38px\9;
+        border-width: 1px;
+        border-style: solid;
+        background-color: #fff;
+        border-radius: 2px;
+        font-size: x-small;
+    }
+
+
+    .layui-form-pane .layui-form-label {
+        width: 110px;
+        padding: 4px 15px;
+        height: 30px;
+        line-height: 20px;
+        border-width: 1px;
+        border-style: solid;
+        border-radius: 2px 0 0 2px;
+        text-align: center;
+        background-color: #ffffff;
+        overflow: hidden;
+        box-sizing: border-box;
+        font-size: x-small;
+    }
+</style>
+</body>
+</html>

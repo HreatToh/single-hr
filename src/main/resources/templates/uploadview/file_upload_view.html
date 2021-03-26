@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+@layout("/layout/header.html"){}
+@layout("/layout/body_layui.html"){}
+<body>
+<div class="layui-card layui-fluid" style="margin-bottom: 0px;">
+    <div class="layui-card-body">
+        <input type="text" id="uploadFileName" readonly class="layui-input layui-fluid" style="margin-bottom: 5px;height: 30px;font-size: x-small" placeholder="文件名...">
+        <div class="layui-upload-drag" id="uploadView">
+            <i class="layui-icon"></i>
+            <p>点击上传，或将文件拖拽到此处</p>
+        </div>
+        <button id="uploadBtn" class="layui-btn layui-btn-sm  layui-btn-fluid" style="margin-top: 8px"><i class="layui-icon">&#xe67c;</i>开始上传</button>
+    </div>
+</div>
+<script>
+    layui.use(['upload','setter','layer'],function () {
+
+        var $ = layui.jquery
+            ,upload = layui.upload
+            ,setter = layui.setter
+            ,layer = layui.layer
+            ,index = parent.layer.getFrameIndex(window.name);
+        //内容自适应
+        parent.layer.iframeAuto(index);
+        //拖拽上传
+        upload.render({
+            elem: '#uploadView'
+            ,url: '${app}/fileUpload/uploadTemplate' //改成您自己的上传接口
+            ,method: 'post'
+            ,auto: false //选择文件后不自动上传
+            ,size: 0 //文件大小
+            ,exts: 'xls|XLS' //文件后缀名
+            ,accept: 'file' //选择文件类型
+            ,bindAction: '#uploadBtn'
+            ,data:{templateId: '${templateId}'}
+            ,choose: function (obj) {
+                obj.preview(function(index, file, result){
+                    $('#uploadFileName').val(file.name);
+                    // console.log(index); //得到文件索引
+                    // console.log(file); //得到文件对象
+                    // console.log(result); //得到文件base64编码，比如图片
+                    //obj.resetFile(index, file, '123.jpg'); //重命名文件名，layui 2.3.0 开始新增
+                    //这里还可以做一些 append 文件列表 DOM 的操作
+                    //obj.upload(index, file); //对上传失败的单个文件重新上传，一般在某个事件中使用
+                    //delete files[index]; //删除列表中对应的文件，一般在某个事件中使用
+                });
+                parent.layer.iframeAuto(index);
+            }
+            ,done: function(res){
+                let o = setter.response;
+                if (res[o.statusName] == o.statusCode.ok){
+                    layer.msg(res[o.msgName]);
+                    setTimeout(function () {
+                        parent.layer.close(index);
+                    },1000);
+                }
+                if (res[o.statusName] == o.statusCode.no){
+                    layer.msg(res[o.msgName]);
+                }
+            }
+        });
+    });
+</script>
+</body>
+</html>

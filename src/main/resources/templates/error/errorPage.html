@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+@layout("/layout/header.html"){}
+@layout("/layout/body_layui.html"){}
+<body>
+<div class="layui-fluid">
+    <div class="layadmin-tips layui-card">
+        <i class="layui-icon" face>&#xe664;</i>
+        <div class="layui-text">
+            <h1>
+                <span class="layui-anim layui-anim-loop layui-anim-">${ strutil.subStringTo(status,0,1)}</span>
+                <span class="layui-anim layui-anim-loop layui-anim-rotate">${ strutil.subStringTo(status,1,2)}</span>
+                <span class="layui-anim layui-anim-loop layui-anim-">${ strutil.subStringTo(status,2,3)}</span>
+
+            </h1>
+            <h1 style="font-size: xxx-large;">
+                <span class="layui-anim layui-anim-loop layui-anim-">${name}</span>
+            </h1>
+        </div>
+    </div>
+
+</div>
+
+
+
+</body>
+</html>

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+@layout("/layout/header.html"){}
+@layout("/layout/body_layui.html"){}
+<body>
+<div class="layui-card">
+    <div class="layui-card-body">
+        <div class="layui-progress layui-progress-big" lay-filter="progress_${threadId}">
+            <div class="layui-progress-bar layui-bg-blue" lay-percent="0%"></div>
+        </div>
+    </div>
+</div>
+<div class="layui-card" style="margin-bottom: 0px;">
+    <div class="layui-card-body">
+        <div class="layui-form">
+            <div class="layui-form-item">
+                <button class="layui-btn layui-btn-xs layui-btn-primary" lay-submit lay-filter="auto">
+                    <i class="layui-icon">&#xe63d;</i>
+                    自动刷新
+                </button>
+                <button class="layui-btn layui-btn-xs layui-btn-primary" lay-submit lay-filter="hand">
+                    <i class="layui-icon">&#xe669;</i>
+                    手动刷新
+                </button>
+                <button class="layui-btn layui-btn-xs layui-btn-primary" lay-submit lay-filter="stop">
+                    <i class="layui-icon">&#xe617;</i>
+                    停止刷新
+                </button>
+                <button class="layui-btn layui-btn-xs layui-btn-primary" lay-submit lay-filter="clean">
+                    <i class="layui-icon">&#xe640;</i>
+                    清除日志
+                </button>
+            </div>
+        </div>
+        <div id="grid_${threadId}" lay-filter="grid_${threadId}"></div>
+    </div>
+</div>
+<script>
+    layui.use(['table','form'],function () {
+        var table = layui.table;
+        var element = layui.element;
+        var form = layui.form;
+        element.init();
+        var syncLog = {
+            time: 5000
+            ,intervalId: null
+            ,finish: false
+            /*自动刷新*/
+            ,auto: function () {
+                let me = this;
+                me.intervalId = setInterval(function(){
+                    if (me.finish){
+                        me.msg('任务完成！');
+                        me.stop();
+                        element.progress('progress_${threadId}', '100%');
+                    }else{
+                        me.load();
+                    }
+                }, me.time);
+            }
+            /*手动刷新*/
+            ,hand: function () {
+                let me = this;
+                me.stop();
+                me.load();
+            }
+            /*停止刷新*/
+            ,stop: function () {
+                let me = this;
+                if (me.intervalId){
+                    clearInterval(me.intervalId);
+                }
+            }
+            /*清除日志*/
+            ,clean: function () {
+                let me = this;
+                table.reload('grid_${threadId}',{where:{ threadId:'-' }});
+                me.stop();
+            }
+            /*执行重载*/
+            ,load: function () {
+                table.reload('grid_${threadId}',{where:{ threadId:'${threadId}' }});
+            }
+            /*弹出信息框*/
+            ,msg: function (msg) {
+                layer.msg(msg, {
+                    icon: 1,
+                    time: 500 //2秒关闭（如果不配置，默认是3秒）
+                });
+            }
+        };
+
+
+        table.render({
+            id: 'grid_${threadId}'
+            ,elem: '#grid_${threadId}'
+            ,url : '${app}/syncLog/getSyncLogList'
+            ,height: 'full-115'
+            // ,skin: 'line' //行边框风格
+            ,even: true //开启隔行背景
+            ,size: 'sm' //小尺寸的表格
+            ,method: 'post'
+            ,where: { threadId:'${threadId}' }
+            ,text: {
+                none: '暂无日志信息' //默认：无数据。注：该属性为 layui 2.2.5 开始新增
+            }
+            ,response: {
+                statusName: 'code' //规定数据状态的字段名称，默认：code
+                ,statusCode: 200 //规定成功的状态码，默认：0
+                ,msgName: 'msg' //规定状态信息的字段名称，默认：msg
+                ,countName: 'total' //规定数据总数的字段名称，默认：count
+                ,dataName: 'list' //规定数据列表的字段名称，默认：data
+            }
+            ,cols:  [[ //标题栏
+                {field: 'THREAD_TIME', title: '时间',align: 'center', width:'28%'}
+                ,{field: 'THREAD_LEVEL', title: '级别',align: 'center', width:'12%'
+                    ,templet: function(d){
+                        let level = d['THREAD_LEVEL'] ,levelSpan;
+                        if (StrUtils.equals(level,'INFO')){levelSpan = ['<span style="color: green">',Dict.getValue('LOG_LEVEL',level),'</span>'].join('');}
+                        if (StrUtils.equals(level,'DEBUG')){levelSpan = ['<span style="color: blue">',Dict.getValue('LOG_LEVEL',level),'</span>'].join('');}
+                        if (StrUtils.equals(level,'WARN')){levelSpan = ['<span style="color: orange">',Dict.getValue('LOG_LEVEL',level),'</span>'].join('');}
+                        if (StrUtils.equals(level,'ERROR')){levelSpan = ['<span style="color: red">',Dict.getValue('LOG_LEVEL',level),'</span>'].join('');}
+                        return levelSpan ;
+                    }
+                }
+                ,{field: 'THREAD_MSG', title: '日志信息',align: 'left', width:'45%'
+                    ,templet: function(d){
+                        return ['<span>',d['THREAD_MSG'],'</span>'].join('') ;
+                    }
+                }
+                ,{field: 'THREAD_PROGRESS', title: '进度',align:'center' ,width:'15%'
+                    ,templet: function(d){
+                        return ['<span style="color: #ff808a">' , d['THREAD_PROGRESS'] , '</span>'].join("");
+                    }
+                }
+            ]]
+            ,done: function(data, curr, count) {
+                let list = data.list , log ,scrollTop ,scrollBar;
+                if (list && list.length > 0){
+                    log = list[list.length - 1];
+                    if ( log['THREAD_MSG'] == '任务完成[Complete]' ){
+                        syncLog.finish = true;
+                        element.progress('progress_${threadId}', '100%');
+                    }else{
+                        if (log['THREAD_PROGRESS']){
+                            let process = log['THREAD_PROGRESS'];
+                            element.progress('progress_${threadId}',  process);
+                        }
+                    }
+                }
+
+                scrollBar = $('.layui-table-main');
+                if (scrollBar && scrollBar.length > 0){
+                    scrollBar.scrollTop(scrollBar[0].scrollHeight);
+                }
+            }
+        });
+
+        //监听行双击事件
+        table.on('rowDouble(grid_${threadId})', function(obj){
+            // console.log(obj.tr) //得到当前行元素对象
+            // console.log(obj.data) //得到当前行数据
+            //obj.del(); //删除当前行
+            let msg = obj.data['THREAD_MSG'] , params = {};
+            if (msg.startsWith("双击该行下载文件")){
+                params.path = msg.split(',')[1];
+                params.filename = msg.split(',')[2];
+                window.location.href='${app}/fileUpload/downloadFile?' + $.param(params)
+            }else{
+                layer.tips(obj.data['THREAD_MSG'], obj.tr, {
+                    tips: [1, '#78BA32']
+                });
+            }
+            //obj.update(fields) //修改当前行数据
+        });
+
+
+        syncLog.auto();
+        $('button[lay-filter="auto"]').addClass('layui-btn-disabled');
+        //监听自动刷新事件
+        form.on('submit(auto)', function(data){
+            if (!$('button[lay-filter="auto"]').hasClass('layui-btn-disabled')){
+                syncLog.msg('开始自动刷新');
+                syncLog.auto();
+                $('button[lay-filter="auto"]').addClass('layui-btn-disabled');
+            }
+            return false;
+        });
+
+        //监听手动刷新事件
+        form.on('submit(hand)', function(data){
+            $('button[lay-filter="auto"]').removeClass('layui-btn-disabled');
+            syncLog.msg('开始手动刷新');
+            syncLog.hand();
+            return false;
+        });
+
+        //监听停止刷新事件
+        form.on('submit(stop)', function(data){
+            $('button[lay-filter="auto"]').removeClass('layui-btn-disabled');
+            syncLog.msg('停止刷新');
+            syncLog.stop();
+            return false;
+        });
+
+        //监听清除事件
+        form.on('submit(clean)', function(data){
+            $('button[lay-filter="auto"]').removeClass('layui-btn-disabled');
+            syncLog.msg('清除日志');
+            syncLog.clean();
+            return false;
+        });
+    });
+</script>
+</body>
+</html>
